@@ -1,28 +1,30 @@
-import flet as ft
-import speech_recognition as sr
-import pyttsx3
-import os
-import shutil
-import threading
-import time
+import flet as ft     # Framework UI basado en Flutter
+import speech_recognition as sr     # Reconocimiento de voz con API de Google
+import pyttsx3   # Síntesis TTS offline
+import os    # Gestión de archivos y procesos nativos
+import shutil     # Concurrencia y temporización
+import threading    # Concurrencia y temporización
+import time           # Concurrencia y temporización
 import sys
 import subprocess
-from queue import Queue
-import json
-from datetime import datetime
+from queue import Queue             # Cola de mensajes para TTS     
+from datetime import datetime   # Registro de eventos y marcas temporales
+
 
 class VoiceAssistant:
     def __init__(self):
         self.assistant_active = True
+        self.is_speaking = False  # Flag para controlar cuando está hablando
+        self.speaking_lock = threading.Lock()  # Lock para sincronizar habla/escucha
         self.setup_speech_recognition()
         self.voice_queue = Queue()
         self.log = []
         self.tts_engine = None
-        self.tts_lock = threading.Lock()  # Agregar lock para thread safety
+        self.tts_lock = threading.Lock()
         self.setup_voice_worker()
         
         # Run diagnosis after setup
-        time.sleep(0.5)  # Give time for everything to initialize
+        time.sleep(0.5)
         self.diagnose_voice_system()
     
     def diagnose_voice_system(self):
@@ -39,7 +41,6 @@ class VoiceAssistant:
         try:
             with self.mic as source:
                 print("🎤 Probando micrófono...")
-                # Brief test
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
             print("✅ Micrófono: Funcionando")
         except Exception as e:
@@ -51,9 +52,7 @@ class VoiceAssistant:
         else:
             print("❌ Hilo de voz: Inactivo")
         
-        # Check voice queue
         print(f"📊 Cola de voz: {self.voice_queue.qsize()} mensajes pendientes")
-        
         print("🔍 Diagnóstico completado")
     
     def setup_voice_worker(self):
@@ -62,7 +61,6 @@ class VoiceAssistant:
         self.voice_thread = threading.Thread(target=self.voice_worker, daemon=True)
         self.voice_thread.start()
         
-        # Verify thread is running
         time.sleep(0.1)
         if self.voice_thread.is_alive():
             print("✅ Hilo de voz iniciado correctamente")
@@ -71,7 +69,7 @@ class VoiceAssistant:
         
         # Test the voice queue with a simple message
         self.speak("Prueba de sistema de voz")
-        time.sleep(1)  # Give time for the test message to process
+        time.sleep(1)
     
     def setup_tts_in_thread(self):
         """Initialize TTS engine inside the worker thread"""
@@ -97,8 +95,8 @@ class VoiceAssistant:
                 print("⚠️ No se encontró voz en español, usando voz predeterminada")
             
             # Set speech rate and volume
-            self.tts_engine.setProperty('rate', 150)  # Slower speech
-            self.tts_engine.setProperty('volume', 1.0)  # Maximum volume
+            self.tts_engine.setProperty('rate', 150)
+            self.tts_engine.setProperty('volume', 1.0)
             
             # Test TTS
             print("🔊 Probando TTS...")
@@ -130,7 +128,7 @@ class VoiceAssistant:
         try:
             while True:
                 print("🔄 Esperando mensaje en cola...")
-                message_data = self.voice_queue.get(timeout=30)  # 30 second timeout
+                message_data = self.voice_queue.get(timeout=30)
                 
                 if message_data is None:
                     print("🛑 Señal de parada recibida - Deteniendo hilo de voz")
@@ -152,12 +150,26 @@ class VoiceAssistant:
                 print(f"🔊 Procesando mensaje: '{text}'" + (" [PRIORITARIO]" if priority else ""))
                 
                 try:
-                    with self.tts_lock:  # Usar lock para thread safety
+                    # Marcar que está hablando
+                    with self.speaking_lock:
+                        self.is_speaking = True
+                    
+                    with self.tts_lock:
                         self.tts_engine.say(text)
                         self.tts_engine.runAndWait()
+                    
                     print(f"✅ Mensaje reproducido: '{text}'")
+                    
+                    # Pausa adicional para asegurar que termine completamente
+                    time.sleep(0.5)
+                    
                 except Exception as tts_error:
                     print(f"❌ Error reproduciendo mensaje: {tts_error}")
+                finally:
+                    # Marcar que terminó de hablar
+                    with self.speaking_lock:
+                        self.is_speaking = False
+                    print("🔇 Terminó de hablar - Listo para escuchar")
                 
                 self.voice_queue.task_done()
                 
@@ -168,6 +180,10 @@ class VoiceAssistant:
             print(f"❌ Error crítico en voice_worker: {e}")
             import traceback
             traceback.print_exc()
+        finally:
+            # Asegurar que se marque como no hablando al terminar
+            with self.speaking_lock:
+                self.is_speaking = False
         
         print("🏁 Hilo de voz terminado")
     
@@ -205,12 +221,24 @@ class VoiceAssistant:
         else:
             self.voice_queue.put(message_data)
         
-        # Debug: Check queue size
         print(f"📊 Cola de voz tiene {self.voice_queue.qsize()} mensajes")
     
     def speak_priority(self, text):
         """Speak with priority (clears queue first)"""
         self.speak(text, priority=True)
+    
+    def wait_for_speech_to_finish(self):
+        """Wait until the assistant finishes speaking"""
+        print("⏳ Esperando a que termine de hablar...")
+        while True:
+            with self.speaking_lock:
+                if not self.is_speaking and self.voice_queue.empty():
+                    break
+            time.sleep(0.1)
+        
+        # Pausa adicional de seguridad
+        time.sleep(0.3)
+        print("✅ Listo para escuchar comandos")
     
     def log_message(self, message, output_widget=None):
         """Add message to log with timestamp"""
@@ -219,7 +247,7 @@ class VoiceAssistant:
         self.log.append(formatted_message)
         
         if output_widget:
-            output_widget.value = "\n".join(self.log[-20:])  # Show last 20 messages
+            output_widget.value = "\n".join(self.log[-20:])
     
     def open_file(self, filepath):
         """Open file with system default application"""
@@ -261,7 +289,10 @@ class VoiceAssistant:
         return None
     
     def recognize_speech(self):
-        """Recognize speech with improved error handling"""
+        """Recognize speech with improved error handling and speech sync"""
+        # Esperar a que termine de hablar antes de escuchar
+        self.wait_for_speech_to_finish()
+        
         with self.mic as source:
             print("🎤 Escuchando...")
             try:
@@ -541,7 +572,7 @@ def main(page: ft.Page):
     )
     
     status_text = ft.Text(
-        "🟢 Listo para recibir comandos",
+        "🟢 Listo para recibir comandos (espera a que termine de hablar)",
         size=14,
         color=ft.colors.GREEN_400
     )
@@ -593,6 +624,7 @@ def main(page: ft.Page):
     welcome_msg = (
         "¡Hola! Soy tu asistente de voz inteligente. "
         "Estoy listo para ayudarte con la gestión de archivos en tu escritorio. "
+        "Recuerda esperar a que termine de hablar antes de dar un comando. "
         "Di 'comandos' para conocer todas las opciones disponibles."
     )
     
