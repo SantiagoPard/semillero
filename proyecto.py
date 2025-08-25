@@ -14,7 +14,7 @@ class VoiceAssistant:
         self.assistant_active = True
         self.is_speaking = False
         self.speaking_lock = threading.Lock()
-        self.setup_speech_recognition()
+        self.setup_speech_recognition() 
         self.voice_queue = Queue()
         self.log = []
         self.tts_engine = None
@@ -35,14 +35,14 @@ class VoiceAssistant:
             self.tts_engine = pyttsx3.init()
             voices = self.tts_engine.getProperty('voices')
             
-            # Try to find Spanish voice
+            # encontrar voz en español
             if voices:
                 for voice in voices:
                     if any(term in voice.name.lower() for term in ['spanish', 'es_', 'mexico', 'spain']):
                         self.tts_engine.setProperty('voice', voice.id)
                         break
             
-            # Set speech properties
+            #configuracion de las propiedades
             self.tts_engine.setProperty('rate', 150)
             self.tts_engine.setProperty('volume', 1.0)
             
@@ -100,8 +100,9 @@ class VoiceAssistant:
     
     #añade un mensaje a la cola
     def speak(self, text): 
-        if text.strip():
-            self.voice_queue.put({'text': text, 'timestamp': time.time()})
+        print("jola")
+       # if text.strip():
+       #    self.voice_queue.put({'text': text, 'timestamp': time.time()})
     
     #espera a que el asistente pare de hablar
     def wait_for_speech_to_finish(self):
@@ -527,11 +528,11 @@ class VoiceAssistant:
     def handle_help_command(self, output_widget):
         commands = [
             "Comandos disponibles:",
-            "• Eliminar [archivo] - Elimina un archivo o carpeta", 
-            "• Mover [archivo] a [carpeta] - Mueve archivo",
-            "• Renombrar [archivo] como [nuevo] - Cambia nombre",
+            "• Eliminar [nombre_archivo] - Elimina un archivo o carpeta", 
+            "• Mover [nombre_archivo] a [nombre_carpeta] - Mueve archivo",
+            "• Renombrar [nombre_archivo] como [nuevo_nombre] - Cambia nombre",
             "• Listar archivos - Muestra todos los archivos",
-            "• Entrar [carpeta] - Entra en una carpeta",
+            "• Entrar [carpeta_destino] - Entra en una carpeta",
             "• Volver - Regresa a la carpeta anterior",
             "• Dónde estoy - Muestra la ubicación actual",
             "• Crear carpeta [nombre] - Crea nueva carpeta",
@@ -593,8 +594,8 @@ class VoiceAssistant:
         while True:  # Siempre escucha
             try:
                 command = self.recognize_speech()
-                consecutive_errors = 0  # Reset error counter on success
-                error_delay = 1  # Reset delay
+                consecutive_errors = 0  # reinicia el numero de errores
+                error_delay = 1  # reinicia el delay
                 
                 if not command:
                     continue
@@ -634,16 +635,16 @@ class VoiceAssistant:
 
 
 def main(page: ft.Page):
-    # Page configuration
+    # configuracion de la ventana
     page.title = "🎤 Asistente de Voz"
     page.window.width = 600
     page.window.height = 750
     page.theme_mode = ft.ThemeMode.DARK
     
-    # Initialize assistant
+    # inicializa el asistente
     assistant = VoiceAssistant()
     
-    # UI Components
+    # commponentes de la interfas del usuario
     title = ft.Text(
         "🎤 Asistente de Voz",
         size=24,
@@ -705,14 +706,14 @@ def main(page: ft.Page):
     
     # Instructions text
     instructions = ft.Text(
-        "💡 Comandos de voz: 'iniciar' para activar, 'parar' para detener\n"
+        "Comandos de voz: 'iniciar' para activar, 'parar' para detener\n"
         "También puedes usar los botones de la interfaz",
         size=11,
         color=ft.colors.GREY_400,
         text_align=ft.TextAlign.CENTER
     )
     
-    # Layout
+    # estructura
     page.add(
         ft.Column([
             title,
@@ -724,11 +725,11 @@ def main(page: ft.Page):
         ], spacing=15, expand=True)
     )
     
-    # Welcome message
+    # mensaje de bienvenida
     assistant.log_message("🚀 Asistente iniciado", log_output)
     assistant.speak("Hola! Soy tu asistente de voz. Di 'comandos' para conocer las opciones disponibles.")
     
-    # Start assistant loop
+    # inicializacion del asistente
     assistant.assistant_thread = threading.Thread(
         target=assistant.assistant_loop,
         args=(log_output, page),
