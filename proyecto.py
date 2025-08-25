@@ -99,10 +99,9 @@ class VoiceAssistant:
                 self.is_speaking = False
     
     #añade un mensaje a la cola
-    def speak(self, text): 
-        print("jola")
-       # if text.strip():
-       #    self.voice_queue.put({'text': text, 'timestamp': time.time()})
+    def speak(self, text):
+       if text.strip():
+            self.voice_queue.put({'text': text, 'timestamp': time.time()})
     
     #espera a que el asistente pare de hablar
     def wait_for_speech_to_finish(self):
